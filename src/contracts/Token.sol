@@ -16,7 +16,7 @@ contract Token is ERC721 {
          minter = msg.sender;
    }
 
-   function mintNFT(string memory tokenURI, uint price, address creator) public returns (uint256) {
+   function mintNFT(uint price,string memory tokenURI,  address creator) public returns (uint256) {
        require(msg.sender == minter, "Error, msg.sender does not have minter role");
        _tokenIds.increment();
        uint256 newItemId = _tokenIds.current();
@@ -28,6 +28,10 @@ contract Token is ERC721 {
 
    function buyNFT(address from, address to, uint256 tokenId) public payable returns(bool) {
       transferFrom(from, to ,tokenId);
+   }
+
+   function burnNFT(uint256 tokenId) public {
+     _burn(tokenId);
    }
 
   function transferFrom(address from, address to, uint256 tokenId) public virtual override {

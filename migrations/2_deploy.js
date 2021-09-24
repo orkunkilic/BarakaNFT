@@ -1,9 +1,7 @@
 const Token = artifacts.require('Token');
 const NFTApp = artifacts.require('NFTApp');
-const Receiver = artifacts.require('Receiver');
 
 module.exports = async function (deployer) {
-  await deployer.deploy(Receiver);
   //deploy Token
   await deployer.deploy(Token);
   //assign token into variable to get it's address

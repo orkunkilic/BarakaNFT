@@ -2,24 +2,10 @@
 pragma solidity >=0.6.0 <0.8.0;
 
 import "./Token.sol";
-import "./Receiver.sol";
 
 contract NFTApp {
 
   Token private token;
-
-  mapping(address => address) public nftWalletOfAddress;
-
-  mapping(address => uint) public etherBalanceOf;
-  mapping(address => uint) public depositStart;
-  mapping(address => bool) public isDeposited;
-  mapping(address => bool) public isBorrowed;
-  mapping(address => uint) public etherCollateral;
-
-  event Deposit(address indexed user, uint etherAmount, uint timeStart);
-  event Withdraw(address indexed user, uint etherAmount, uint depositTime, uint interest);
-  event Borrow(address indexed user, uint collateralEtherAmount, uint borrowedTokenAmount);
-  event PayOff(address indexed user, uint fee);
 
   event TokenMinted(address indexed user, uint256 tokenId, uint price);
 
@@ -28,8 +14,8 @@ contract NFTApp {
   }
 
 
-  function mint(string memory tokenURI, uint price) public{
-    uint256 tokenId = token.mintNFT(tokenURI, price, msg.sender);
+  function mint(uint price, string memory tokenURI) public{
+    uint256 tokenId = token.mintNFT(price, tokenURI,  msg.sender);
     emit TokenMinted(msg.sender, tokenId, price);
   }
 
@@ -38,6 +24,11 @@ contract NFTApp {
     require(NFTPrice == msg.value, "Please send correct price.");
       from.transfer(msg.value);
       token.buyNFT(from, to, tokenId);
+  }
+
+  function burnNFT(uint256 tokenId) public {
+    require(msg.sender == token.ownerOf(tokenId), "Only owner of the token can burn the token.");
+    token.burnNFT(tokenId);
   }
 
   function getNFTInfo(uint256 tokenId) public view returns(address, uint256, string memory, uint256) {

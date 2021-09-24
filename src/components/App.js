@@ -1,12 +1,12 @@
 import { Tabs, Tab } from 'react-bootstrap';
 import NFTApp from '../abis/NFTApp.json';
-import Receiver from '../abis/Receiver.json';
 import React, { Component } from 'react';
 import Token from '../abis/Token.json';
 import Web3 from 'web3';
 import './App.css';
+import { create } from 'ipfs-http-client';
 
-//h0m3w0rk - add new tab to check accrued interest
+const client = create('https://ipfs.infura.io:5001/api/v0');
 
 class App extends Component {
   async componentWillMount() {
@@ -46,11 +46,29 @@ class App extends Component {
     } else window.alert('Please install Metamask!');
   }
 
-  async mint(amount, link) {
+  async uploadImage(e) {
+    const file = e.target.files[0];
+    try {
+      const added = await client.add(file);
+      const url = `https://ipfs.infura.io/ipfs/${added.path}`;
+      this.setState({ fileUrl: url });
+    } catch (e) {
+      console.log('Upload error: ', e);
+    }
+  }
+
+  async mint(name, description, amount) {
     if (this.state.nftApp !== 'undefined') {
       try {
+        const metadata = {
+          name,
+          description,
+          image: this.state.fileUrl,
+        };
+        const added = await client.add(Buffer.from(JSON.stringify(metadata)));
+        const url = `https://ipfs.infura.io/ipfs/${added.path}`;
         const tokenId = await this.state.nftApp.methods
-          .mint(link, amount.toString())
+          .mint(amount.toString(), url)
           .send({ from: this.state.account });
         window.alert(
           'Your NFT id is ' + tokenId.events.TokenMinted.returnValues['tokenId']
@@ -67,11 +85,12 @@ class App extends Component {
         const tokenInfo = await this.state.nftApp.methods
           .getNFTInfo(tokenId)
           .call({ from: this.state.account });
-        console.log(tokenInfo);
+        const response = await fetch(tokenInfo['2']);
+        tokenInfo['2'] = await response.json();
         this.setState({ NFT: tokenInfo });
         return tokenInfo;
       } catch (e) {
-        console.log('Error, mint: ', e);
+        console.log('Error, getNFTInfo: ', e);
       }
     }
   }
@@ -85,6 +104,20 @@ class App extends Component {
           .send({ from: this.state.account, value: tokenInfo['1'] });
       } catch (e) {
         console.log('Error, buy: ', e);
+      }
+    }
+  }
+
+  async burn(tokenId) {
+    if (this.state.nftApp !== 'undefined') {
+      try {
+        await this.state.nftApp.methods
+          .burnNFT(tokenId)
+          .send({ from: this.state.account });
+        window.alert('NFT has burned!');
+        window.location.reload();
+      } catch (e) {
+        console.log('Error, burn: ', e);
       }
     }
   }
@@ -117,6 +150,7 @@ class App extends Component {
       receiver: null,
       NFTBalance: null,
       NFT: null,
+      fileUrl: '',
     };
   }
 
@@ -126,16 +160,15 @@ class App extends Component {
         <nav className="navbar navbar-dark fixed-top bg-dark flex-md-nowrap p-0 shadow">
           <a
             className="navbar-brand col-sm-3 col-md-2 mr-0"
-            href="http://www.dappuniversity.com/bootcamp"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <b>nftApp</b>
+            <b>BarakaNFT</b>
           </a>
         </nav>
         <div className="container-fluid mt-5 text-center">
           <br></br>
-          <h1>Welcome to nftApp</h1>
+          <h1>Welcome to BarakaNFT</h1>
           <h2>{this.state.account}</h2>
           <div className="d-flex flex-column justify-content-center align-items-center">
             <button
@@ -164,9 +197,12 @@ class App extends Component {
                         onSubmit={(e) => {
                           e.preventDefault();
                           let amount = this.price.value;
-                          let link = this.link.value;
                           amount = amount * 10 ** 18;
-                          this.mint(amount, link);
+                          this.mint(
+                            this.name.value,
+                            this.description.value,
+                            amount
+                          );
                         }}
                       >
                         <div className="form-group mr-sm-2">
@@ -181,17 +217,35 @@ class App extends Component {
                             ref={(input) => (this.price = input)}
                           />
                           <input
-                            id="link"
+                            id="name"
                             type="text"
                             className="form-control form-control-md"
-                            placeholder="Link"
+                            placeholder="Name"
                             required
-                            ref={(input) => (this.link = input)}
+                            ref={(input) => (this.name = input)}
+                          />
+                          <input
+                            id="description"
+                            type="text"
+                            className="form-control form-control-md"
+                            placeholder="Description"
+                            required
+                            ref={(input) => (this.description = input)}
+                          />
+                          <input
+                            type="file"
+                            name="image"
+                            id="image"
+                            onChange={(e) => this.uploadImage(e)}
                           />
                         </div>
-                        <button type="submit" className="btn btn-primary">
-                          Mint
-                        </button>
+                        {this.state.fileUrl !== '' ? (
+                          <button type="submit" className="btn btn-primary">
+                            Mint
+                          </button>
+                        ) : (
+                          ''
+                        )}
                       </form>
                     </div>
                   </Tab>
@@ -212,7 +266,6 @@ class App extends Component {
                           <br />
                           <input
                             id="tokenId"
-                            step="0.01"
                             type="number"
                             className="form-control form-control-md"
                             placeholder="NFT ID"
@@ -233,16 +286,38 @@ class App extends Component {
                               )}{' '}
                               ETH
                             </p>
-                            <p className="word-break">
-                              IPFS Link: {this.state.NFT['2']}
-                            </p>
+                            <div className="d-flex flex-column justify-content-center align-items-start border border-info p-5">
+                              <p>Name: {this.state.NFT['2'].name}</p>
+                              <p>
+                                Description: {this.state.NFT['2'].description}
+                              </p>
+                              <p>
+                                Image:
+                                <img
+                                  style={{ maxWidth: 300 }}
+                                  src={this.state.NFT['2'].image}
+                                  alt={this.state.NFT['2'].name}
+                                  className="img-fluid"
+                                />
+                              </p>
+                            </div>
+
                             <button
-                              type="submit"
-                              className="btn btn-primary"
+                              className="btn btn-success mt-2 w-50"
                               onClick={() => this.buy(this.state.NFT['3'])}
                             >
                               Buy
                             </button>
+                            {this.state.NFT['0'] === this.state.account ? (
+                              <button
+                                className="btn btn-danger mt-2"
+                                onClick={() => this.burn(this.state.NFT['3'])}
+                              >
+                                Burn NFT
+                              </button>
+                            ) : (
+                              ''
+                            )}
                           </div>
                         ) : (
                           ''
@@ -250,142 +325,6 @@ class App extends Component {
                       </form>
                     </div>
                   </Tab>
-                  {/*
-                  <Tab eventKey="deposit" title="Deposit">
-                    <div>
-                      <br />
-                      How much do you want to deposit?
-                      <br />
-                      (min. amount is 0.01 ETH)
-                      <br />
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          let amount = this.depositAmount.value;
-                          amount = amount * 10 ** 18;
-                          this.deposit(amount);
-                        }}
-                      >
-                        <div className="form-group mr-sm-2">
-                          <br />
-                          <input
-                            id="depositAmount"
-                            step="0.01"
-                            type="number"
-                            className="form-control form-control-md"
-                            placeholder="amount..."
-                            required
-                            ref={(input) => (this.depositAmount = input)}
-                          />
-                        </div>
-                        <button type="submit" className="btn btn-primary">
-                          DEPOSIT
-                        </button>
-                      </form>
-                    </div>
-                  </Tab>
-                  <Tab eventKey="withdraw" title="Withdraw">
-                    <br />
-                    Do you want to withdraw + take interest?
-                    <br />
-                    <div>
-                      <button
-                        type="submit"
-                        className="btn btn-primary"
-                        onClick={(e) => this.withdraw(e)}
-                      >
-                        WITHDRAW
-                      </button>
-                    </div>
-                  </Tab>
-                  <Tab eventKey="borrow" title="Borrow">
-                    <div>
-                      <br></br>
-                      Do you want to borrow tokens?
-                      <br></br>
-                      (You'll get 50% of collateral, in Tokens)
-                      <br></br>
-                      Type collateral amount (in ETH)
-                      <br></br>
-                      <br></br>
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          let amount = this.borrowAmount.value;
-                          amount = amount * 10 ** 18;
-                          this.borrow(amount);
-                        }}
-                      >
-                        <div className="form-group mr-sm-2">
-                          <input
-                            id="borrowAmount"
-                            step="0.01"
-                            type="number"
-                            ref={(input) => {
-                              this.borrowAmount = input;
-                            }}
-                            className="form-control form-control-md"
-                            placeholder="amount..."
-                            required
-                          />
-                        </div>
-                        <button type="submit" className="btn btn-primary">
-                          BORROW
-                        </button>
-                      </form>
-                    </div>
-                  </Tab>
-                  <Tab eventKey="payOff" title="Payoff">
-                    <div>
-                      <br></br>
-                      Do you want to payoff the loan?
-                      <br></br>
-                      (You'll receive your collateral - fee)
-                      <br></br>
-                      <br></br>
-                      <button
-                        type="submit"
-                        className="btn btn-primary"
-                        onClick={(e) => this.payOff(e)}
-                      >
-                        PAYOFF
-                      </button>
-                    </div>
-                  </Tab>
-                  <Tab eventKey="checkInterest" title="Check DBC">
-                    <br />
-                    Current DBC
-                    <br />
-                    <div>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => this.checkDBC()}
-                      >
-                        GET
-                      </button>
-                    </div>
-                    {this.state.DBC ? this.state.DBC + ' DBC' : ''}
-                  </Tab>
-                  <Tab
-                    eventKey="balanceInnftApp"
-                    title="Check Balance In nftApp"
-                  >
-                    <br />
-                    Current Balance in nftApp
-                    <br />
-                    <div>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => this.getBalanceInnftApp()}
-                      >
-                        GET
-                      </button>
-                    </div>
-                    {this.state.balanceInnftApp
-                      ? this.state.balanceInnftApp + ' ETH'
-                      : ''}
-                  </Tab>
-                 */}
                 </Tabs>
               </div>
             </main>
