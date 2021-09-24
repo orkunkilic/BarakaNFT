@@ -31,12 +31,29 @@ contract NFTApp {
     token.burnNFT(tokenId);
   }
 
+  function editNFTPrice(uint256 price, uint256 tokenId) public {
+    require(msg.sender == token.ownerOf(tokenId), "Only owner of the token can edit the price.");
+    token.editNFTPrice(price, tokenId);
+  }
+
   function getNFTInfo(uint256 tokenId) public view returns(address, uint256, string memory, uint256) {
     return (token.ownerOf(tokenId), token.NFTPrices(tokenId), token.tokenURI(tokenId), tokenId);
   }
 
-  function getBalance(address user) public view returns(uint256) {
-    return token.balanceOf(user);
+  function getBalance() public view returns(uint256) {
+    return token.balanceOf(msg.sender);
+  }
+
+  function getTokenIds() public view returns(uint256[] memory) {
+    uint256 balance = token.balanceOf(msg.sender);
+    uint256[] memory tokenIds = new uint256[](balance);
+    for(uint256 i=0; i<balance; i++) {
+      uint256 tokenId = token.tokenOfOwnerByIndex(msg.sender, i);
+      tokenIds[i] = tokenId;
+    }
+
+    return tokenIds;
+
   }
 
 

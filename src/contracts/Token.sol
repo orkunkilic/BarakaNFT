@@ -30,6 +30,10 @@ contract Token is ERC721 {
       transferFrom(from, to ,tokenId);
    }
 
+   function editNFTPrice(uint256 price, uint256 tokenId) public {
+     NFTPrices[tokenId] = price;
+   }
+
    function burnNFT(uint256 tokenId) public {
      _burn(tokenId);
    }
